@@ -41,12 +41,13 @@ function handleTabs(event, editor) {
       handleIndentation(editor, start, end);
     }
     // updateLineNumbers();
-    updateSyntaxHighlighting(editor, highlight);
+    // const highlight = null;
+    // updateSyntaxHighlighting(editor, highlight);
   }
 }
 
 // Function to handle auto-closing characters and wrapping selected text
-function autoCloseOrWrap(event, editor) {
+function autoCloseOrWrap(event, editor, highlighter) {
   const char = event.key;
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
@@ -71,8 +72,8 @@ function autoCloseOrWrap(event, editor) {
       editor.setSelectionRange(cursorPosition + 1, cursorPosition + 1);
     }
   }
-//   updateLineNumbers();
-  updateSyntaxHighlighting(editor, highlight);
+  // updateLineNumbers();
+  updateSyntaxHighlighting(editor, highlighter);
 }
 
 // Main feature handler
@@ -82,7 +83,8 @@ export default function featureHandler(
   suggestionDropdown, 
   lineNumbers, 
   foldingUtils,
-  languageSelector
+  languageSelector,
+  highlighter
 ) {
 
   const onKeydown = (event) => {
@@ -91,14 +93,14 @@ export default function featureHandler(
     handleTabs(event, editor);
     handleMoveLine(event, editor);
     // handleMultiCursor(event, editor);  // Uncomment if needed
-    autoCloseOrWrap(event, editor);
-   
+    autoCloseOrWrap(event, editor, highlighter);
+    
     updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
   };
 
 
   const onInput = () => {
-    handleSuggestions(editor, suggestionDropdown, languageSelector);
+    handleSuggestions(editor, suggestionDropdown, languageSelector, highlighter);
     extractDefinedVarsAndObjects(editor.value);
     updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
     // updateSyntaxHighlighting(editor, languageSelector);

@@ -58,8 +58,9 @@ export function handleMoveLine(e, editor) {
             e.preventDefault();  // Prevent default browser behavior (if any)
             moveLineDown(editor);
         }
-    }
+    }    
     // Update syntax highlighting if needed
+    const highlight = null;
     updateSyntaxHighlighting(editor, highlight);
 }
 // moveLine =====================
@@ -120,6 +121,7 @@ export function handleMultiSelect(e, editor) {
         }
     }
     // Update syntax highlighting if needed
+    const highlight = null;
     updateSyntaxHighlighting(editor, highlight);
 }
 

@@ -5,9 +5,8 @@ import { languages } from "../utils/languages.js";
  * 
  * @param {HTMLElement} editor - The reference to the editor element (textarea).
  * @param {HTMLElement} highlight - The reference to the highlight element (pre).
- * @param {HTMLElement} languageSelector - The reference to the language selector element (select).
  */
-export function updateSyntaxHighlighting(editor, highlight, languageSelector) {
+export function updateSyntaxHighlighting(editor, highlight) {
     const code = editor.value;
       const lang = 'javascript'; // Replace with dynamic language if needed
       let highlightedCode = [""];
@@ -33,7 +32,8 @@ export function updateSyntaxHighlighting(editor, highlight, languageSelector) {
       }
     
       // Safely replace line breaks to maintain format
-      highlight.innerHTML = highlightedCode.replace(/\n/g, '<br>');
+      if(highlight)
+        highlight.innerHTML = highlightedCode.replace(/\n/g, '<br>');
 }
 
 /**

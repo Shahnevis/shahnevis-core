@@ -83,6 +83,7 @@ function toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNum
             updateFoldSymbol(blockStart, true);
         }
         // // updateIndentationGuides(); // Update line numbers after folding/unfolding
+        const highlight = null;
         updateSyntaxHighlighting(editor, highlight); // Reapply syntax highlighting
         updateMinimapContent(minimapContent, highlight); // Update the minimap
     }
@@ -157,58 +158,38 @@ function pythonlike_findIndentedBlock(startLine, code) {
 
 
 // Function to handle the folding state update
-export function updateFoldingState(changeInfo, editor, updatedCode) {
-    console.log(changeInfo);
+export function updateFoldingState(changeInfo, editor, updatedCode, oldFoldedBlocks, minimapContent, lineNumbers, setCode) {
+    console.log("changeInfo:", changeInfo);
     
-    const newFoldedBlocks = { ...standalone_foldedBlocks };  // Copy the current folded blocks state
-    const changeStart = changeInfo.startLine;  // Where the change starts
+    const newFoldedBlocks = { ...oldFoldedBlocks };  // Copy the current folded blocks state
     const changeEnd = changeInfo.endLine;      // Where the change ends
     const changeLength = changeInfo.lineCountChange; // The number of lines added/removed
-
-    console.log(newFoldedBlocks);
-    let counter = 0;
+    const changeType = changeInfo.changeType;
 
     // Step 1: Adjust folding data based on change
     for (let lineNumber in newFoldedBlocks) {
         let foldedBlock = newFoldedBlocks[lineNumber];
+        const changeStart = changeInfo.startLine;  // Where the change starts
         const blockStart = parseInt(lineNumber);  // Starting line of the folded block
         const blockEnd = blockStart + foldedBlock.length - 1;  // Ending line of the folded block
-        
-        console.log(blockStart);
-        console.log(changeEnd+counter);
-        
-        // Case 1: If the change is before the folded block
-        if (changeEnd+counter-1 < blockStart) {
-            
+
+        // If the change is before the folded block
+        if (changeEnd-1 < blockStart) {
             // Adjust the block's position based on the length of the change
             const newStartLine = blockStart + changeLength;
-            console.log("newStartLine: ", newStartLine);
             const newFoldedBlock =  [...foldedBlock] ;
             delete newFoldedBlocks[lineNumber]; // Remove the old block
             newFoldedBlocks[newStartLine] = newFoldedBlock;  // Insert block at new position
-        }
-        
+        }        
         // Case 2: If the change is inside the folded block
-        else if (changeStart <= blockEnd && changeEnd+counter >= blockStart) {
-            // delete newFoldedBlocks[lineNumber];
-            // The change overlaps the block, so we unfold it
-        }
-
-        // Case 3: If the change is after the folded block, we do nothing
-        else if (changeStart > blockEnd) {
-            counter += foldedBlock.length;
-            // No action needed, block stays in place
+        else if (changeStart <= blockEnd && changeEnd >= blockStart) {
+            // Call toggleFold to unfold the block visually and logically
+            toggleFold(blockStart, lineNumber, editor, minimapContent, lineNumbers, setCode);
+            editor.selectionStart = editor.selectionEnd = changeInfo.startPos;
+            // Remove from foldedBlocks since it's now unfolded
+            delete newFoldedBlocks[lineNumber];
         }
     }
 
-    // Step 2: Reapply folding to the updated code (optional, based on your use case)
-    // Here you could check for newly foldable blocks after the change, if needed.
-    // For simplicity, we assume only the adjustment of existing folded blocks is handled here.
-
-    // Step 3: Update the global folding state
-    // console.log(newFoldedBlocks);
-    standalone_foldedBlocks = {...newFoldedBlocks}
-    
-    // setFoldedBlock(newFoldedBlocks);  // Update the folding state
-}
-
+    return newFoldedBlocks
+} 

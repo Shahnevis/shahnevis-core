@@ -28,7 +28,7 @@ export function extractDefinedVarsAndObjects(code) {
 }
 
 // Function to handle arrow key navigation in the suggestion dropdown
-function handleArrowDown(event, editor, suggestionDropdown, insertSuggestion) {
+function handleArrowDown(event, editor, suggestionDropdown, insertSuggestion, highlighter) {
     const items = suggestionDropdown.querySelectorAll('.suggestion-item');
     
     if (suggestionDropdown.style.display !== 'none' && items.length > 0) {
@@ -42,7 +42,7 @@ function handleArrowDown(event, editor, suggestionDropdown, insertSuggestion) {
             highlightSelected(items);
         } else if (event.key === 'Enter' && selectedIndex >= 0) {
             event.preventDefault();
-            insertSuggestion(items[selectedIndex].innerText, editor, suggestionDropdown);
+            insertSuggestion(items[selectedIndex].innerText, editor, suggestionDropdown, highlighter);
         }
     }
 }
@@ -59,7 +59,7 @@ function highlightSelected(items) {
 }
 
 // Function to show the suggestions dropdown
-function showSuggestionsDropdown(suggestions, cursorPosition, editor, suggestionDropdown, insertSuggestion) {
+function showSuggestionsDropdown(suggestions, cursorPosition, editor, suggestionDropdown, insertSuggestion, highlighter) {
     const { top, left } = getCaretCoordinates(editor, cursorPosition);
     suggestionDropdown.style.left = `${left}px`;
     suggestionDropdown.style.top = `${top + 20}px`; // Position slightly below the caret
@@ -69,12 +69,12 @@ function showSuggestionsDropdown(suggestions, cursorPosition, editor, suggestion
     // Add event listeners to each suggestion item
     suggestionDropdown.querySelectorAll('.suggestion-item').forEach(item => {
         item.addEventListener('click', function() {
-            insertSuggestion(this.innerText, editor, suggestionDropdown);
+            insertSuggestion(this.innerText, editor, suggestionDropdown, highlighter);
         });
     });
 
     // Add the ArrowDown listener
-    editor.addEventListener('keydown', (e) => handleArrowDown(e, editor, suggestionDropdown, insertSuggestion));
+    editor.addEventListener('keydown', (e) => handleArrowDown(e, editor, suggestionDropdown, insertSuggestion, highlighter));
 }
 
 // Function to hide the suggestions dropdown
@@ -84,7 +84,7 @@ function hideSuggestionsDropdown(editor, suggestionDropdown) {
 }
 
 // Function to insert the selected suggestion into the editor
-function insertSuggestion(suggestion, editor, suggestionDropdown) {
+function insertSuggestion(suggestion, editor, suggestionDropdown, highlighter) {
     const cursorPosition = editor.selectionStart;
     const currentValue = editor.value;
     const lastWord = currentValue.substring(0, cursorPosition).split(/\s/).pop();
@@ -100,7 +100,8 @@ function insertSuggestion(suggestion, editor, suggestionDropdown) {
     editor.setSelectionRange(newCursorPosition, newCursorPosition);
 
     // Update syntax highlighting
-    updateSyntaxHighlighting(editor, highlight);
+    // const highlight = null;
+    updateSyntaxHighlighting(editor, highlighter);
 }
 
 // Function to get the caret (cursor) position in terms of pixel coordinates
@@ -126,7 +127,7 @@ function getCaretCoordinates(editor, position) {
 }
 
 // Main function to handle suggestions
-export function handleSuggestions(editor, suggestionDropdown, languageSelector) {
+export function handleSuggestions(editor, suggestionDropdown, languageSelector, highlighter) {
     // const lang = languageSelector.value;
     const lang = 'javascript';
     const cursorPosition = editor.selectionStart;
@@ -142,7 +143,7 @@ export function handleSuggestions(editor, suggestionDropdown, languageSelector) 
         ];
 
         if (suggestions.length > 0) {
-            showSuggestionsDropdown(suggestions, cursorPosition, editor, suggestionDropdown, insertSuggestion);
+            showSuggestionsDropdown(suggestions, cursorPosition, editor, suggestionDropdown, insertSuggestion, highlighter);
         } else {
             hideSuggestionsDropdown(editor, suggestionDropdown);
         }

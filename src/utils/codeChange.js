@@ -1,63 +1,109 @@
 import { standalone_foldedBlocks } from "./folding";
 
 /**
- * Detects changes made in the editor and returns change information.
- * This includes detecting insertion, deletion, or modification of code.
+ * Detects changes made in the editor and returns detailed change information.
+ * This includes detecting insertion, deletion, or modification of code, handling folded blocks.
  *
  * @param {Event} event - The event object from the editor change.
+ * @param {string} newCode - The code after the change.
  * @param {string} oldCode - The code before the change.
- * @returns {Object} changeInfo - Information about the change.
- */
-export function detectChange(event, newCode, oldCode) {
-    const selectionStart = event.target.selectionStart;
-    const selectionEnd = event.target.selectionEnd;
+ * @param {Object} foldedBlocks - Information about folded blocks in the editor.
+ * @returns {Object} changeInfo - Information about the detected change.
+**/
+export function detectChange(event, newCode, oldCode, foldedBlocks) {
+  const selectionStart = event.target.selectionStart;
+  const selectionEnd = event.target.selectionEnd;
+  const inputData = (event.inputType == "insertLineBreak") ?'\n':event.data;
 
-    const changeInfo = {
-        changeType: '',
-        affectedText: '',
-        startLine: 0,
-        endLine: 0,
-        lineCountChange: 0,
-        startPos: selectionStart,
-        endPos: selectionEnd,
-        context: ''
-    };
+  const changeInfo = {
+    changeType: '',
+    affectedText: '',
+    startLine: 0,
+    endLine: 0,
+    lineCountChange: 0,
+    logicalCountChange: 0,
+    startPos: selectionStart,
+    endPos: selectionEnd,
+    editorIndex: 0,
+    context: '',
+    data: inputData
+  };
 
-    // Step 1: Detect if text was added, removed, or replaced
-    if (newCode.length > oldCode.length) {
-        // Insertion
-        changeInfo.changeType = 'insertion';
-        const diff = newCode.length - oldCode.length;
-        changeInfo.affectedText = newCode.substr(selectionStart - diff, diff);
-    } else if (newCode.length < oldCode.length) {
-        // Deletion
-        changeInfo.changeType = 'deletion';
-        const diff = oldCode.length - newCode.length;
-        changeInfo.affectedText = oldCode.substr(selectionStart, diff);
-    } else {
-        // Replacement (no length difference, just modified content)
-        changeInfo.changeType = 'replacement';
-        changeInfo.affectedText = newCode.substr(selectionStart, selectionEnd - selectionStart);
-    }
+  // Step 1: Detect type of change (insertion, deletion, replacement)
+  const lengthDiff = newCode.length - oldCode.length;
 
-    // Step 2: Determine which lines are affected
-    const oldLines = oldCode.split('\n');
-    const newLines = newCode.split('\n');
+  if (lengthDiff > 0) {
+    // Insertion
+    changeInfo.changeType = 'insertion';
+    const insertedText = newCode.substring(selectionStart - lengthDiff, selectionStart);
+    changeInfo.affectedText = insertedText;
+  } else if (lengthDiff < 0) {
+    // Deletion
+    changeInfo.changeType = 'deletion';
+    const deletedText = oldCode.substring(selectionStart, selectionStart - lengthDiff);
+    changeInfo.affectedText = deletedText;
+  } else {
+    // Replacement
+    changeInfo.changeType = 'replacement';
+    changeInfo.affectedText = newCode.substring(selectionStart, selectionEnd);
+  }
+
+
+  // Calculate line counts
+  // const oldLines = oldCode.substring(0, selectionStart).split('\n');
+  // const newLines = newCode.substring(0, selectionStart).split('\n');
+
+  let insertionStartPos = selectionStart;
+  if (changeInfo.changeType === 'insertion') {
+    insertionStartPos = selectionStart - lengthDiff;
+  } else if (changeInfo.changeType === 'deletion') {
+    insertionStartPos = selectionStart;
+  }
+  
+  const oldLinesUntilStart = oldCode.substring(0, insertionStartPos).split('\n');
+  const logicalStartLine = oldLinesUntilStart.length;
+
     
-    // Find the start and end line for the change
-    changeInfo.startLine = oldCode.slice(0, selectionStart).split("\n").length - 1;
-    changeInfo.endLine = oldCode.slice(0, selectionEnd).split("\n").length - 1;
-    changeInfo.lineCountChange = newLines.length - oldLines.length;
+  // const logicalStartLine = oldLines.length - 1;
+  const logicalEndLine = logicalStartLine + changeInfo.affectedText.split('\n').length - 1;
+  
+  // Step 2: Folded line adjustments (fixed to handle blocks correctly)
+  function calculateRealLineNumber(logicalLine, foldedBlocks) {
+      if (!foldedBlocks) return 0;
+      let realLine = logicalLine -1;
+      let adjusted;
+      
+      return Object.entries(foldedBlocks).reduce((total, [foldStart, foldedLines]) => {
+        const foldStartLine = parseInt(foldStart, 10);
+        // console.log("foldStart: ", foldStart);
+        if (realLine <= foldStartLine) {
+          // return realLine;
+        } else if (foldStartLine < realLine) {  
+          realLine += foldedLines.length;
+        }
+        return realLine;
+      }, 0);
+      
+  }
 
-    // Step 3: Identify context for structural changes (e.g., block starts/ends)
-    // For example, this can be used to detect whether curly braces or other structural characters were affected.
-    if (changeInfo.affectedText.includes("{") || changeInfo.affectedText.includes("}")) {
-        changeInfo.context = "blockStructureChange";
-    } else if (changeInfo.affectedText.includes("(") || changeInfo.affectedText.includes(")")) {
-        changeInfo.context = "functionStructureChange";
-    }
+  changeInfo.editorIndex = logicalStartLine;
+  console.log("logicalStartLine", logicalStartLine);
+  console.log("logicalStartLine", logicalEndLine);
+  
+  changeInfo.startLine = calculateRealLineNumber(logicalStartLine, foldedBlocks);
+  changeInfo.endLine = calculateRealLineNumber(logicalEndLine, foldedBlocks);
 
-    return changeInfo;
+  // Line count change calculation
+  changeInfo.lineCountChange = newCode.split('\n').length - oldCode.split('\n').length;
+  changeInfo.logicalCountChange = (changeInfo.endLine - changeInfo.startLine) * (changeInfo.lineCountChange < 0 ? -1 : 1);
+  
+  // Step 3: Identify context for structural changes
+  if (/\{|\}/.test(changeInfo.affectedText)) {
+    changeInfo.context = "blockStructureChange";
+  } else if (/\(|\)/.test(changeInfo.affectedText)) {
+    changeInfo.context = "functionStructureChange";
+  }
+  return changeInfo;
 }
 
 

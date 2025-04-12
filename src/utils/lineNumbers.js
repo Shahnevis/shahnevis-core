@@ -1,6 +1,39 @@
 export function updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils, setCode) {
-    console.log("test");
-    console.log(foldingUtils.getFoldedBlocksById());
+
+    
+    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+
+    function countTotalFoldedLines(startLine) {
+        const keys = Object.keys(foldedBlocks)
+        .map(Number)
+        .sort((a, b) => a - b);
+
+        let total = foldedBlocks[startLine].length;
+        // console.log("=---------------------------------");
+        // console.log(foldedBlocks);
+        // console.log(keys);
+        
+        for (let key of keys) {
+            // console.log("key: ", key);
+            // console.log("startLine: ", startLine);
+            // console.log(foldedBlocks[key.toString()]);
+            // console.log(foldedBlocks[key.toString()].length);
+            // console.log(total);
+            
+            // console.log(key, parseInt(startLine));
+            
+            
+            if (key <= startLine) continue;
+            if (key < total+startLine) {
+                total += foldedBlocks[key.toString()].length;
+            } else {
+                break;
+            }
+        }
+        console.log("total: ", total);
+        
+        return total;
+    }
     
     
     const codeLines = [...editor.value.split('\n')];
@@ -10,7 +43,9 @@ export function updateIndentationGuides(editor, minimapContent, lineNumbers, fol
     let indentationLevels = [];
     let hiddenLineCount = 0;
     let currentVisibleLine = 0;
-
+    let i = 0;
+    // console.log(codeLines);
+    
     // Iterate through code lines
     codeLines.forEach((line, index) => {
         const trimmedLine = line.trim();
@@ -18,14 +53,18 @@ export function updateIndentationGuides(editor, minimapContent, lineNumbers, fol
         // If there are hidden lines, append placeholders
         if (hiddenLineCount) {
             appendHiddenLines(lineNumbers, hiddenLineCount);
-            currentVisibleLine += hiddenLineCount + 1;
+            // console.log("FoldedLines", countTotalFoldedLines(currentVisibleLine -1 ));
+            
+            currentVisibleLine += countTotalFoldedLines(currentVisibleLine -1 ) + 1;
             hiddenLineCount = 0;
         } else {
             currentVisibleLine++;
         }
 
         const trimmedNextLine = codeLines[index+1]?.trim();
-        const isFolded = !!foldingUtils.getFoldedBlocksById()[currentVisibleLine-1];
+        const isFolded = !!foldedBlocks[currentVisibleLine-1];
+        // console.log("currentVisibleLine: ", currentVisibleLine);
+        // console.log("foldedBlocks[currentVisibleLine-1]: ", foldedBlocks[currentVisibleLine-1]);
 
 
         // Create line number element with indentations
@@ -47,7 +86,9 @@ export function updateIndentationGuides(editor, minimapContent, lineNumbers, fol
 
         // Handle folded lines
         if (isFolded) {
-            hiddenLineCount = foldingUtils.getFoldedBlocksById()[currentVisibleLine-1].length;
+            hiddenLineCount = foldedBlocks[currentVisibleLine-1].length;
+            // console.log("hiddenLineCount: ", hiddenLineCount);
+            
             indentationLevels.pop();
         }
     });
