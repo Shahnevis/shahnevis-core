@@ -1,6 +1,6 @@
 {
   "name": "shahnevis-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "exports": {
@@ -11,6 +11,13 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shahnevis/shahnevis-core.git"
+  },
+  "keywords": ["editor", "editor-core", "text editor", "javascript"],
+  "author": "shahrooz darani",
+  "license": "GPL-3.0-only",
   "scripts": {
     "build": "babel src --out-dir dist",
     "prepublishOnly": "npm run build"
