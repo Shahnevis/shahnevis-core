@@ -91,7 +91,7 @@ export default function featureHandler(
     
     handleUndoRedo(event, editor)
     handleTabs(event, editor);
-    handleMoveLine(event, editor);
+    handleMoveLine(event, editor, foldingUtils);
     // handleMultiCursor(event, editor);  // Uncomment if needed
     autoCloseOrWrap(event, editor, highlighter);
     

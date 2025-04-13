@@ -87,8 +87,6 @@ export function detectChange(event, newCode, oldCode, foldedBlocks) {
   }
 
   changeInfo.editorIndex = logicalStartLine;
-  console.log("logicalStartLine", logicalStartLine);
-  console.log("logicalStartLine", logicalEndLine);
   
   changeInfo.startLine = calculateRealLineNumber(logicalStartLine, foldedBlocks);
   changeInfo.endLine = calculateRealLineNumber(logicalEndLine, foldedBlocks);

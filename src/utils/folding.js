@@ -157,39 +157,92 @@ function pythonlike_findIndentedBlock(startLine, code) {
 }
 
 
+export function updateFoldedBlocksAfterSwap(foldingUtils, rangeStart, rangeEnd) {
+    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+    let cumulativeShift = 0;
+    let delta = rangeEnd - rangeStart;
+    console.log(foldedBlocks);
+    console.log("rangeStart: ", rangeStart);
+    console.log("rangeEnd: ", rangeEnd);
+
+    const updatedFoldedBlocks = {};
+    // Loop through every folded block key.
+    for (const key in foldedBlocks) {
+      const numKey = parseInt(key, 10);
+      console.log("cumulativeShift: ", cumulativeShift);
+      console.log("rangeEnd + cumulativeShift: ", rangeEnd + cumulativeShift);
+      console.log("numKey: ", numKey);
+      
+      if (numKey === rangeStart) {
+        // The folded block at the upper line moves to the bottom of the selection.
+        updatedFoldedBlocks[rangeEnd] = foldedBlocks[key];
+        cumulativeShift += foldedBlocks[key].length;
+
+      } else if (numKey >= rangeStart && numKey <= rangeEnd + cumulativeShift) {
+          // A folded block that starts inside the selected range shifts up by one.
+          updatedFoldedBlocks[numKey + delta] = foldedBlocks[key];
+          cumulativeShift += foldedBlocks[key].length;
+      } else {
+        // Other folded blocks remain unchanged.
+        updatedFoldedBlocks[numKey] = foldedBlocks[key];
+      }
+    }
+    console.log(updatedFoldedBlocks);
+    
+    return updatedFoldedBlocks;
+}
+
 // Function to handle the folding state update
 export function updateFoldingState(changeInfo, editor, updatedCode, oldFoldedBlocks, minimapContent, lineNumbers, setCode) {
-    console.log("changeInfo:", changeInfo);
+    const newFoldedBlocks = {};
+
+    // Destructure key values from the change object.
+    const { changeType, startLine: changeStart, endLine: changeEnd, startPos, lineCountChange, logicalCountChange: changeLength, data } = changeInfo;
     
-    const newFoldedBlocks = { ...oldFoldedBlocks };  // Copy the current folded blocks state
-    const changeEnd = changeInfo.endLine;      // Where the change ends
-    const changeLength = changeInfo.lineCountChange; // The number of lines added/removed
-    const changeType = changeInfo.changeType;
+    // Determine if the change contains an Enter/newline.
+    const insertLength = data?.split('\n').length - 1 || 0;
 
-    // Step 1: Adjust folding data based on change
-    for (let lineNumber in newFoldedBlocks) {
-        let foldedBlock = newFoldedBlocks[lineNumber];
-        const changeStart = changeInfo.startLine;  // Where the change starts
-        const blockStart = parseInt(lineNumber);  // Starting line of the folded block
-        const blockEnd = blockStart + foldedBlock.length - 1;  // Ending line of the folded block
+    if(changeLength != 0){
+      // This variable will track the cumulative net shift due to unfolded blocks,
+      // which affects the starting line numbers of subsequent folded blocks.
+      // let cumulativeShift = changeLength;
+      let cumulativeShift = changeLength>0?lineCountChange:changeLength;
 
-        // If the change is before the folded block
-        if (changeEnd-1 < blockStart) {
-            // Adjust the block's position based on the length of the change
-            const newStartLine = blockStart + changeLength;
-            const newFoldedBlock =  [...foldedBlock] ;
-            delete newFoldedBlocks[lineNumber]; // Remove the old block
-            newFoldedBlocks[newStartLine] = newFoldedBlock;  // Insert block at new position
-        }        
-        // Case 2: If the change is inside the folded block
-        else if (changeStart <= blockEnd && changeEnd >= blockStart) {
-            // Call toggleFold to unfold the block visually and logically
-            toggleFold(blockStart, lineNumber, editor, minimapContent, lineNumbers, setCode);
-            editor.selectionStart = editor.selectionEnd = changeInfo.startPos;
-            // Remove from foldedBlocks since it's now unfolded
-            delete newFoldedBlocks[lineNumber];
+      // Process each folded block from the old state.
+      for (const key in oldFoldedBlocks) {
+        // Convert key to an integer line number.
+        const blockStart = parseInt(key, 10);
+        const foldedBlock = oldFoldedBlocks[key];
+        const blockLength = foldedBlock.length;
+        const blockEnd = blockStart + blockLength - 1;
+    
+        // If the change is inserting a newline and it occurs inside a folded block, then "open" the block.
+        if (changeStart === blockStart) {
+          // Insertion on the first line of the folded block:
+          // Unfold the block visually/logically.
+          toggleFold(blockStart+insertLength, blockStart, editor, minimapContent, lineNumbers, setCode);
+          editor.selectionStart = editor.selectionEnd = startPos;
+          // Since we open the block, we remove it and only count the inserted lines.
+          cumulativeShift = insertLength;
+          continue;
+
         }
-    }
+        if (changeStart >= blockStart && changeStart+insertLength <= blockStart) {
+        // if (changeStart >= blockStart && changeStart <= blockEnd) {
+          // The block is being modified by an enter; remove it from the folded stack.
+          continue;
+        }
+    
+        if (changeType == "deletion" && changeStart <= blockStart && changeEnd >= blockEnd) {
+          continue;
+        }
 
-    return newFoldedBlocks
+        // Otherwise, if the block starts before the change, it remains unchanged.
+        // If it starts at or after the change, shift its starting line by the net line change.
+        const newKey = blockStart < changeStart ? blockStart : blockStart + cumulativeShift;
+        if(newKey >= 0) newFoldedBlocks[newKey] = foldedBlock;
+      }
+      return newFoldedBlocks;
+    }
+    return oldFoldedBlocks;
 } 

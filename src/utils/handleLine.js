@@ -1,8 +1,9 @@
 import { updateSyntaxHighlighting } from '../core/highlighting.js';
+import { updateFoldedBlocksAfterSwap } from './folding.js';
 
 // moveLine =====================
 // Function to move line up
-function moveLineUp(editor) {
+function moveLineUp(editor, foldingUtils) {
     const cursorPosition = editor.selectionStart;
     const lines = editor.value.split("\n");
 
@@ -19,14 +20,16 @@ function moveLineUp(editor) {
 
     // Update the editor content
     editor.value = lines.join("\n");
-
+    foldingUtils.updateFoldedBlocks(
+        updateFoldedBlocksAfterSwap(foldingUtils, lineIndex, lineIndex -1)
+    )
     // Restore the cursor position
     const newCursorPos = cursorPosition - lines[lineIndex].length - 1; // Adjust cursor for the swapped line
     editor.selectionStart = editor.selectionEnd = newCursorPos;
 }
 
 // Function to move line down
-function moveLineDown(editor) {
+function moveLineDown(editor, foldingUtils) {
     const cursorPosition = editor.selectionStart;
     const lines = editor.value.split("\n");
 
@@ -43,20 +46,23 @@ function moveLineDown(editor) {
 
     // Update the editor content
     editor.value = lines.join("\n");
+    foldingUtils.updateFoldedBlocks(
+        updateFoldedBlocksAfterSwap(foldingUtils, lineIndex, lineIndex + 1)
+    )
 
     // Restore the cursor position
     const newCursorPos = cursorPosition + lines[lineIndex].length + 1; // Adjust cursor for the swapped line
     editor.selectionStart = editor.selectionEnd = newCursorPos;
 }
 
-export function handleMoveLine(e, editor) {
+export function handleMoveLine(e, editor, foldingUtils) {
     if (e.altKey) {
         if (e.key === 'ArrowUp') {
             e.preventDefault();  // Prevent default browser behavior (if any)
-            moveLineUp(editor);
+            moveLineUp(editor, foldingUtils);
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();  // Prevent default browser behavior (if any)
-            moveLineDown(editor);
+            moveLineDown(editor, foldingUtils);
         }
     }    
     // Update syntax highlighting if needed
