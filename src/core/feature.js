@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { handleCopyOrCut, handlePaste } from "../utils/handleClipboard.js";
 import { handleMoveLine } from "../utils/handleLine.js";
 import { updateIndentationGuides } from "../utils/lineNumbers.js";
 import { debounceSaveState, handleUndoRedo, saveState } from "../utils/stackManager.js";
@@ -109,6 +110,7 @@ export default function featureHandler(
     handleUndoRedo(event, editor)
     handleTabs(event, editor);
     handleMoveLine(event, editor, foldingUtils);
+    handleCopyOrCut(event, editor, foldingUtils)
     // handleMultiCursor(event, editor);  // Uncomment if needed
     autoCloseOrWrap(event, editor, highlighter);
     
@@ -116,7 +118,7 @@ export default function featureHandler(
   };
 
 
-  const onInput = () => {
+  const onInput = (event) => {
     handleSuggestions(editor, suggestionDropdown, languageSelector, highlighter);
     extractDefinedVarsAndObjects(editor.value);
     updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
@@ -124,9 +126,14 @@ export default function featureHandler(
     debounceSaveState(editor);
   };
 
+  const onPaste = (event) => {
+    handlePaste(event, editor, minimapContent, lineNumbers, foldingUtils);
+  }
+
   // Add event listeners (only once)
   editor.addEventListener('keydown', onKeydown);
   editor.addEventListener('input', onInput);
+  editor.addEventListener("paste", onPaste);
 
   // Initialize the Features
   saveState(editor);  // Save initial state
@@ -135,5 +142,6 @@ export default function featureHandler(
   return () => {
     editor.removeEventListener('keydown', onKeydown);
     editor.removeEventListener('input', onInput);
+    editor.removeEventListener("paste", onPaste);
   };
 }

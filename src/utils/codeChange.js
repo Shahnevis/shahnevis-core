@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { standalone_foldedBlocks } from "./folding";
+import { expandViewToFull, standalone_foldedBlocks } from "./folding";
 
 /**
  * Detects changes made in the editor and returns detailed change information.
@@ -122,6 +122,70 @@ export function detectChange(event, newCode, oldCode, foldedBlocks) {
   }
   return changeInfo;
 }
+
+
+
+/**
+ * Build a changeInfo object for an insertion (paste), taking folded blocks into account.
+ *
+ * @param {ClipboardEvent} e
+ * @param {HTMLTextAreaElement} editor
+ * @param {Object} foldedBlocksMap
+ * @returns {{
+*   changeType: "insertion",
+*   startLine: number,
+*   endLine: number,
+*   startPos: number,
+*   data: string,
+*   lineCountChange: number,
+*   logicalCountChange: number
+* }}
+*/
+export function makePasteChangeInfo(e, editor, foldedBlocksMap) {
+ // 1) Raw paste data and selection in the *view* (collapsed) text
+ const pasteText     = e.clipboardData.getData("text/plain");
+ const viewText      = editor.value;
+ const { selectionStart, selectionEnd } = editor;
+
+ // 2) Rebuild full→view mapping so we can convert view-lines → full-lines
+ const { viewToFull } = expandViewToFull(viewText, foldedBlocksMap);
+
+ // 3) Compute where the selection begins/ends in view lines & cols
+ const beforeStart    = viewText.slice(0, selectionStart);
+ const beforeEnd      = viewText.slice(0, selectionEnd);
+
+ const viewStartLine  = beforeStart.split("\n").length - 1;
+ const viewStartCol   = selectionStart - (beforeStart.lastIndexOf("\n") + 1);
+
+ const viewEndLine    = beforeEnd.split("\n").length - 1;
+ const viewEndCol     = selectionEnd - (beforeEnd.lastIndexOf("\n") + 1);
+
+ // 4) Translate those view lines into full‑text lines
+ const fullStartLine  = viewToFull[viewStartLine];
+ const fullEndLine    = viewToFull[viewEndLine];
+
+ // 5) Count lines removed & inserted in the *view*
+ const removedViewLines   = viewEndLine  - viewStartLine;
+ const insertedViewLines  = pasteText.split("\n").length - 1;
+ const lineCountChange    = insertedViewLines - removedViewLines;
+
+ // 6) Count lines removed & inserted in the *full* text
+ const removedFullLines   = fullEndLine  - fullStartLine;
+ const insertedFullLines  = insertedViewLines; // same as view for paste
+ const logicalCountChange = insertedFullLines - removedFullLines;
+
+ return {
+   changeType:       "insertion",
+   startLine:        fullStartLine,
+   endLine:          fullEndLine,
+   startPos:         selectionStart,
+   data:             pasteText,
+   lineCountChange,
+   logicalCountChange
+ };
+}
+
+
 
 
 /**

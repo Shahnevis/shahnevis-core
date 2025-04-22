@@ -18,16 +18,37 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 import { updateSyntaxHighlighting } from '../core/highlighting.js';
-import { updateFoldedBlocksAfterSwap } from './folding.js';
+import { computeTotalSpan, updateFoldedBlocksAfterSwap } from './folding.js';
 
 // moveLine =====================
 // Function to move line up
 function moveLineUp(editor, foldingUtils) {
+    const foldedBlocks = foldingUtils.getFoldedBlocksById();
     const cursorPosition = editor.selectionStart;
     const lines = editor.value.split("\n");
 
     // Get the line number of the cursor
     const lineIndex = editor.value.substring(0, cursorPosition).split("\n").length - 1;
+    let actualLineIndex = editor.value.substring(0, cursorPosition).split("\n").length - 1;
+
+    let lastBlockNumber = 0;
+    let lastBlockSize = 0;
+
+    for (const key in foldedBlocks) {
+        const numKey = parseInt(key, 10);
+
+        if ((numKey > lastBlockNumber+lastBlockSize || lastBlockNumber == 0) && numKey < actualLineIndex) {
+            lastBlockNumber = numKey
+            if(lastBlockNumber != 0)
+                lastBlockSize = 0;
+        }
+
+        if (numKey < actualLineIndex) {
+            actualLineIndex += foldedBlocks[key].length
+            lastBlockSize += foldedBlocks[key].length
+        } else 
+            break;
+    }
 
     // If it's the first line, do nothing
     if (lineIndex === 0) return;
@@ -40,20 +61,37 @@ function moveLineUp(editor, foldingUtils) {
     // Update the editor content
     editor.value = lines.join("\n");
     foldingUtils.updateFoldedBlocks(
-        updateFoldedBlocksAfterSwap(foldingUtils, lineIndex, lineIndex -1)
+        updateFoldedBlocksAfterSwap(
+            foldedBlocks, 
+            actualLineIndex, 
+            foldedBlocks[actualLineIndex -lastBlockSize - 1]?
+                lastBlockNumber:(actualLineIndex - 1)
+        )
     )
     // Restore the cursor position
-    const newCursorPos = cursorPosition - lines[lineIndex].length - 1; // Adjust cursor for the swapped line
+    const newCursorPos = cursorPosition - lines[lineIndex]?.length - 1; // Adjust cursor for the swapped line
     editor.selectionStart = editor.selectionEnd = newCursorPos;
 }
 
 // Function to move line down
 function moveLineDown(editor, foldingUtils) {
+    const foldedBlocks = foldingUtils.getFoldedBlocksById();
     const cursorPosition = editor.selectionStart;
     const lines = editor.value.split("\n");
 
     // Get the line number of the cursor
     const lineIndex = editor.value.substring(0, cursorPosition).split("\n").length - 1;
+    let actualLineIndex = editor.value.substring(0, cursorPosition).split("\n").length - 1;
+
+
+    for (const key in foldedBlocks) {
+        const numKey = parseInt(key, 10);
+
+        if (numKey < actualLineIndex) 
+            actualLineIndex += foldedBlocks[key].length;
+        else 
+            break;
+    }
 
     // If it's the last line, do nothing
     if (lineIndex === lines.length - 1) return;
@@ -66,11 +104,11 @@ function moveLineDown(editor, foldingUtils) {
     // Update the editor content
     editor.value = lines.join("\n");
     foldingUtils.updateFoldedBlocks(
-        updateFoldedBlocksAfterSwap(foldingUtils, lineIndex, lineIndex + 1)
+        updateFoldedBlocksAfterSwap(foldedBlocks, actualLineIndex, actualLineIndex + 1)
     )
 
     // Restore the cursor position
-    const newCursorPos = cursorPosition + lines[lineIndex].length + 1; // Adjust cursor for the swapped line
+    const newCursorPos = cursorPosition + lines[lineIndex]?.length + 1; // Adjust cursor for the swapped line
     editor.selectionStart = editor.selectionEnd = newCursorPos;
 }
 

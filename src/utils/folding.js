@@ -55,9 +55,6 @@ function findBlockBoundaries(startLine, actualLineNumber, code) {
             }
         }
     }
-    // console.log({ blockStart, blockEnd });
-    // console.log(blockStart !== -1 && blockEnd !== -1);
-    
     
     if (blockStart !== -1 && blockEnd !== -1) {
         return { blockStart, blockEnd };
@@ -70,7 +67,6 @@ function toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNum
     const code = editor.value;
     const block = findBlockBoundaries(startLine, actualLineNumber, code);
     
-    // console.log(block);
     if (block) {
         const { blockStart, blockEnd } = block;
         
@@ -175,40 +171,140 @@ function pythonlike_findIndentedBlock(startLine, code) {
     return { blockStart: startLine, blockEnd: blockEnd - 1 };
 }
 
+/**
+ * Rebuild the fully‑expanded lines and a view→full mapping
+ * by splicing in every folded block in ascending order of start lines.
+ *
+ * @param {string} viewText
+ * @param {{ [startLine: number]: string[] }} foldedBlocksMap
+ * @returns {{ fullLines: string[], viewToFull: number[] }}
+ */
+export function expandViewToFull(viewText, foldedBlocksMap) {
+  // Split the collapsed text into lines
+  const viewLines = viewText.split(/\r?\n/);
+  // Work on a mutable copy for splicing
+  const fullLines = [...viewLines];
 
-export function updateFoldedBlocksAfterSwap(foldingUtils, rangeStart, rangeEnd) {
-    const foldedBlocks = foldingUtils.getFoldedBlocksById();
-    let cumulativeShift = 0;
-    let delta = rangeEnd - rangeStart;
-    console.log(foldedBlocks);
-    console.log("rangeStart: ", rangeStart);
-    console.log("rangeEnd: ", rangeEnd);
+  // 1) Gather and sort full‑start keys
+  const starts = Object
+    .keys(foldedBlocksMap)
+    .map(n => parseInt(n, 10))
+    .sort((a, b) => a - b);
 
-    const updatedFoldedBlocks = {};
-    // Loop through every folded block key.
-    for (const key in foldedBlocks) {
-      const numKey = parseInt(key, 10);
-      console.log("cumulativeShift: ", cumulativeShift);
-      console.log("rangeEnd + cumulativeShift: ", rangeEnd + cumulativeShift);
-      console.log("numKey: ", numKey);
-      
-      if (numKey === rangeStart) {
-        // The folded block at the upper line moves to the bottom of the selection.
-        updatedFoldedBlocks[rangeEnd] = foldedBlocks[key];
-        cumulativeShift += foldedBlocks[key].length;
+  // 2) Build a foldEntries array with viewStart and hidden info
+  let hiddenAccum = 0;
+  const foldEntries = starts.map(start => {
+    const hiddenLines = foldedBlocksMap[start] || [];
+    const countHidden = hiddenLines.length;
+    // In the collapsed view, this block header appears at:
+    const viewStart = start - hiddenAccum;
+    hiddenAccum += countHidden;
+    return { viewStart, hiddenCount: countHidden, hiddenLines };
+  });
 
-      } else if (numKey >= rangeStart && numKey <= rangeEnd + cumulativeShift) {
-          // A folded block that starts inside the selected range shifts up by one.
-          updatedFoldedBlocks[numKey + delta] = foldedBlocks[key];
-          cumulativeShift += foldedBlocks[key].length;
-      } else {
-        // Other folded blocks remain unchanged.
-        updatedFoldedBlocks[numKey] = foldedBlocks[key];
+  // 3) Splice each block’s hidden lines back into fullLines
+  let offset = 0;
+  for (const { viewStart, hiddenLines } of foldEntries) {
+    if (hiddenLines.length === 0) continue;
+    // Insert _after_ the block header in fullLines, accounting for prior offsets
+    fullLines.splice(viewStart + 1 + offset, 0, ...hiddenLines);
+    offset += hiddenLines.length;
+  }
+
+  // 4) Build view→full mapping
+  const viewToFull = viewLines.map((_, vIdx) => {
+    let fIdx = vIdx;
+    for (const { viewStart, hiddenCount } of foldEntries) {
+      if (viewStart < vIdx) fIdx += hiddenCount;
+      else break;
+    }
+    return fIdx;
+  });
+
+  return {
+    fullText: fullLines.join("\n"),
+    viewToFull
+  };
+}
+
+/**
+ * Recursively compute the full span for a folded block that begins at “start”.
+ * The base span is determined by foldedBlocks[start].length (for example, a simple block
+ * may have length 2 meaning it covers two lines). Then any folded block whose key falls
+ * inside the base interval will extend the overall ending line if its own effective end is later.
+*/
+export function computeTotalSpan(start, foldedBlocks) {
+  
+  if(!foldedBlocks[start]) return 0;
+  
+  // Use the folded block's own length as the base span.
+  const baseSpan = foldedBlocks[start].length;
+  let totalEnd = start + baseSpan;
+  
+  // Look through every key (sorted in document order) that may be nested.
+  const sortedKeys = Object.keys(foldedBlocks)
+    .map(Number)
+    .sort((a, b) => a - b);
+  for (const k of sortedKeys) {
+    // If k is nested inside the current block...
+    if (k > start && k < totalEnd) {
+      const nestedSpan = computeTotalSpan(k, foldedBlocks);
+      const nestedEnd = k + nestedSpan;
+      // Extend totalEnd if the nested block reaches further down.
+      if (nestedEnd > totalEnd) {
+        totalEnd = nestedEnd + 1;
       }
     }
-    console.log(updatedFoldedBlocks);
+  }
+  
+  return totalEnd - start;
+}
+
+/**
+ * Swap two folded block segments (with their nested blocks) in the mapping.
+*/
+export function updateFoldedBlocksAfterSwap(foldedBlocks, start1, start2) {
+  // Determine lower starting lines.
+  const A = Math.min(start1, start2);
+  const spanA = computeTotalSpan(A, foldedBlocks); // Compute effective spans for each block.
+  const groupA_end = A + spanA;    // end boundary for group A
+  
+  // Determine higher starting lines.
+  const B = Math.max(start1, start2) + (start2 > start1 ? spanA : 0);
+  // const B = Math.max(start1, start2) + spanA;
+  
+  const spanB = computeTotalSpan(B, foldedBlocks); // Compute effective spans for each block.
+  const groupB_end = B + spanB;    // end boundary for group B
+
+  const updatedFoldedBlocks = {};
+  for (const key in foldedBlocks) {
+    const numKey = parseInt(key, 10);
+    let newKey = numKey;
+    let groupA_end = A + spanA;    // end boundary for group A
+
+    if (numKey >= groupA_end && numKey < B) {
+      // Keys in the gap between the two blocks.
+      // Their new key shifts by the difference (spanB - spanA).
+
+      newKey = numKey - (A + spanA) + (A + spanB) - 1;
+    }
+    else if (numKey >= A && numKey < groupA_end) {
+      // Keys that belong to group A (first block)
+      // They will be relocated to after group B.
+      newKey = numKey - A + (B + spanB - spanA);
+    } else if (numKey >= B && numKey < groupB_end) {
+      // Keys that belong to group B (second block)
+      // They move to the top (starting at A).      
+      newKey = numKey - B + A;
+    }  else {
+      // Other keys (before A or after group B) remain unchanged.
+      newKey = numKey;
+    }
     
-    return updatedFoldedBlocks;
+    updatedFoldedBlocks[newKey] = foldedBlocks[key];
+  }
+
+  return updatedFoldedBlocks;
 }
 
 // Function to handle the folding state update
