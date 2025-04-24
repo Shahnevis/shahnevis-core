@@ -20,11 +20,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import { handleCopyOrCut, handlePaste } from "../utils/handleClipboard.js";
 import { handleMoveLine } from "../utils/handleLine.js";
 import { updateIndentationGuides } from "../utils/lineNumbers.js";
-import { debounceSaveState, handleUndoRedo, saveState } from "../utils/stackManager.js";
 import { extractDefinedVarsAndObjects, handleSuggestions } from "../utils/suggestions.js";
 // import { handleMultiCursor } from "../utils/multiCursors.js";
 
 import { updateSyntaxHighlighting } from "./highlighting";
+import { createHistoryManager } from "../utils/historyManager.js";
+import { handleCodeChange } from "../utils/codeChange.js";
 
 const tabSpaces = '    ';  // Number of spaces per tab (use '\t' for an actual tab character)
 
@@ -102,19 +103,27 @@ export default function featureHandler(
   lineNumbers, 
   foldingUtils,
   languageSelector,
-  highlighter
+  highlighter,
+  setEditorState,
+  editorState
 ) {
+
+  // 1) Create a fresh history manager for this editor instance
+  const history = createHistoryManager(setEditorState, editorState, 200 );
 
   const onKeydown = (event) => {
     
-    handleUndoRedo(event, editor)
     handleTabs(event, editor);
     handleMoveLine(event, editor, foldingUtils);
     handleCopyOrCut(event, editor, foldingUtils)
     // handleMultiCursor(event, editor);  // Uncomment if needed
     autoCloseOrWrap(event, editor, highlighter);
-    
+    handleCodeChange(event, editor, minimapContent, lineNumbers, foldingUtils);
     updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
+    
+    // stack manager
+    history.handleUndoRedo(event, editor, foldingUtils);
+    
   };
 
 
@@ -123,7 +132,8 @@ export default function featureHandler(
     extractDefinedVarsAndObjects(editor.value);
     updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
     // updateSyntaxHighlighting(editor, languageSelector);
-    debounceSaveState(editor);
+    history.debounceSaveState(editor, foldingUtils);
+
   };
 
   const onPaste = (event) => {
@@ -136,7 +146,8 @@ export default function featureHandler(
   editor.addEventListener("paste", onPaste);
 
   // Initialize the Features
-  saveState(editor);  // Save initial state
+  if(editorState.undoStack.length == 0)
+    history.saveState(editor, foldingUtils);  // Save initial state
 
   // Cleanup function to remove event listeners if needed (for React or other environments)
   return () => {

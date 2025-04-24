@@ -102,7 +102,7 @@ export function handlePaste(event, editor, minimapContent, lineNumbers, foldingU
     
     const foldedBlocks = foldingUtils.getFoldedBlocksById();
     
-    const changeInfo   = makePasteChangeInfo(event, editor, minimapContent, lineNumbers, foldedBlocks);
+    const changeInfo   = makePasteChangeInfo(event, editor, foldedBlocks);
 
     console.log(event.type);
     // console.log(foldedBlocks);

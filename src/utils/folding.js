@@ -63,51 +63,51 @@ function findBlockBoundaries(startLine, actualLineNumber, code) {
 }
 
 // function to toggle block folding (fold/unfold)
-function toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
-    const code = editor.value;
-    const block = findBlockBoundaries(startLine, actualLineNumber, code);
+// function toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
+//     const code = editor.value;
+//     const block = findBlockBoundaries(startLine, actualLineNumber, code);
     
-    if (block) {
-        const { blockStart, blockEnd } = block;
+//     if (block) {
+//         const { blockStart, blockEnd } = block;
         
-        // Check if this block is already folded
-        if (standalone_foldedBlocks[actualLineNumber]) {
-            // Unfold the block by restoring the lines
-            const foldedCode = standalone_foldedBlocks[actualLineNumber];
-            const unfoldedCode = editor.value.split("\n");
-            unfoldedCode.splice(blockStart + 1, 0, ...foldedCode);
-            editor.value = unfoldedCode.join("\n");
+//         // Check if this block is already folded
+//         if (standalone_foldedBlocks[actualLineNumber]) {
+//             // Unfold the block by restoring the lines
+//             const foldedCode = standalone_foldedBlocks[actualLineNumber];
+//             const unfoldedCode = editor.value.split("\n");
+//             unfoldedCode.splice(blockStart + 1, 0, ...foldedCode);
+//             editor.value = unfoldedCode.join("\n");
 
-            delete standalone_foldedBlocks[actualLineNumber];
+//             delete standalone_foldedBlocks[actualLineNumber];
 
-            // Change symbol to unfold
-            updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
-            updateFoldSymbol(blockStart, false);
-        } else {
-            // Fold the block by hiding lines between blockStart and blockEnd
-            const codeLines = editor.value.split("\n");
-            const foldedLines = codeLines.splice(blockStart + 1, blockEnd - blockStart);
+//             // Change symbol to unfold
+//             updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
+//             updateFoldSymbol(blockStart, false);
+//         } else {
+//             // Fold the block by hiding lines between blockStart and blockEnd
+//             const codeLines = editor.value.split("\n");
+//             const foldedLines = codeLines.splice(blockStart + 1, blockEnd - blockStart);
 
-            standalone_foldedBlocks[actualLineNumber] = foldedLines; // Store the folded lines
-            codeLines.splice(blockStart + 1, 0); //`/* ... Folded ${foldedLines.length} lines */`
+//             standalone_foldedBlocks[actualLineNumber] = foldedLines; // Store the folded lines
+//             codeLines.splice(blockStart + 1, 0); //`/* ... Folded ${foldedLines.length} lines */`
 
-            editor.value = codeLines.join("\n");
+//             editor.value = codeLines.join("\n");
             
-            // Change symbol to fold
-            updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
-            updateFoldSymbol(blockStart, true);
-        }
-        // // updateIndentationGuides(); // Update line numbers after folding/unfolding
-        const highlight = null;
-        updateSyntaxHighlighting(editor, highlight); // Reapply syntax highlighting
-        updateMinimapContent(minimapContent, highlight); // Update the minimap
-    }
+//             // Change symbol to fold
+//             updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
+//             updateFoldSymbol(blockStart, true);
+//         }
+//         // // updateIndentationGuides(); // Update line numbers after folding/unfolding
+//         const highlight = null;
+//         updateSyntaxHighlighting(editor, highlight); // Reapply syntax highlighting
+//         updateMinimapContent(minimapContent, highlight); // Update the minimap
+//     }
 
-    // Notify the parent or any external component about the new textarea value
-    if (setCode) {
-        setCode(editor.value); // Call the callback function with the updated code
-    }
-}
+//     // Notify the parent or any external component about the new textarea value
+//     if (setCode) {
+//         setCode(editor.value); // Call the callback function with the updated code
+//     }
+// }
 
 // Function to update the fold/unfold symbol based on the block state
 function updateFoldSymbol(lineIndex, folded=false) {
@@ -361,3 +361,71 @@ export function updateFoldingState(changeInfo, editor, updatedCode, oldFoldedBlo
     }
     return oldFoldedBlocks;
 } 
+
+export function  updateFoldedBlocks (updatedBlocks){
+
+  // setFoldedBlocksById((prev) => {
+  //   const newState = { ...prev, [id]: updatedBlocks};
+  //   // console.log(newState);
+  //   return newState;
+  // })
+  
+  // return updatedBlocks;
+}
+
+export function  toggleFold (startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
+  
+  const foldedBlocks = foldedBlocksById[id] || {};
+  const code = editor.value;
+  const block = findBlockBoundaries(startLine, actualLineNumber, code);
+  
+  // console.log(block);
+  // console.log("actualLineNumber: ", actualLineNumber);
+  if (block) {
+    const { blockStart, blockEnd } = block;
+
+    if (foldedBlocks[actualLineNumber]) {
+      const foldedCode = foldedBlocks[actualLineNumber];
+      const unfoldedCode = editor.value.split("\n");
+      unfoldedCode.splice(blockStart + 1, 0, ...foldedCode);
+      editor.value = unfoldedCode.join("\n");
+      // console.log(unfoldedCode);
+      
+      // setFoldedBlocksById((prev) => {
+      //   const newFoldedBlock =  {...prev[id]} ;
+      //   delete newFoldedBlock[actualLineNumber]; // Remove the old block
+      //   const newState = { ...prev, [id]: {...newFoldedBlock}};
+      //   // console.log(newState);
+      //   return newState;
+      // });
+
+      // updateIndentationGuides(editor, minimapContent, lineNumbers, {getFoldedBlocksById, foldingButtons, expandButtons});
+      updateFoldSymbol(blockStart, false);
+    } else {
+      const codeLines = editor.value.split("\n");
+      const foldedLines = codeLines.splice(blockStart + 1, blockEnd - blockStart);
+
+      // setFoldedBlocksById((prev) => {
+      //   const newState = { ...prev, [id]: {
+      //     ...prev[id],
+      //     [actualLineNumber]: foldedLines,
+      //   }};
+      //   // console.log(newState);
+      //   return newState;
+      // });
+
+      codeLines.splice(blockStart + 1, 0);
+      // console.log(codeLines);
+      editor.value = codeLines.join("\n");
+
+      // updateIndentationGuides(editor, minimapContent, lineNumbers, {getFoldedBlocksById, foldingButtons, expandButtons});
+      updateFoldSymbol(blockStart, true);
+    }
+  }
+
+  if (setCode) {
+    // console.log(editor.value);
+    // setCode(editor.value);
+  }
+}
+

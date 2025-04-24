@@ -29,101 +29,69 @@ import { expandViewToFull, standalone_foldedBlocks } from "./folding";
  * @param {Object} foldedBlocks - Information about folded blocks in the editor.
  * @returns {Object} changeInfo - Information about the detected change.
 **/
-export function detectChange(event, newCode, oldCode, foldedBlocks) {
-  const selectionStart = event.target.selectionStart;
-  const selectionEnd = event.target.selectionEnd;
-  const inputData = (event.inputType == "insertLineBreak") ?'\n':event.data;
+export function detectChange(e, editor, foldedBlocksMap) {
+  const key = e.key || '';
+  const viewBefore = editor.value;
+  let startPos = editor.selectionStart;
+  let endPos   = editor.selectionEnd;
 
-  const changeInfo = {
-    changeType: '',
-    affectedText: '',
-    startLine: 0,
-    endLine: 0,
-    lineCountChange: 0,
-    logicalCountChange: 0,
-    startPos: selectionStart,
-    endPos: selectionEnd,
-    editorIndex: 0,
-    context: '',
-    data: inputData
-  };
+  let insertText = "";
+  let removedText = viewBefore.slice(startPos, endPos);
 
-  // Step 1: Detect type of change (insertion, deletion, replacement)
-  const lengthDiff = newCode.length - oldCode.length;
-
-  if (lengthDiff > 0) {
-    // Insertion
-    changeInfo.changeType = 'insertion';
-    const insertedText = newCode.substring(selectionStart - lengthDiff, selectionStart);
-    changeInfo.affectedText = insertedText;
-  } else if (lengthDiff < 0) {
-    // Deletion
-    changeInfo.changeType = 'deletion';
-    const deletedText = oldCode.substring(selectionStart, selectionStart - lengthDiff);
-    changeInfo.affectedText = deletedText;
+  // (A) If it's a simple character/Enter insertion:
+  if (key.length === 1 || key === "Enter") {
+    insertText = (key === "Enter") ? "\n" : key;
+  }
+  // (B) If it's Backspace or Delete:
+  else if (key === "Backspace" || key === "Delete") {
+    // If nothing is selected, remove one char backward/forward
+    if (startPos === endPos) {
+      if (key === "Backspace" && startPos > 0) {
+        startPos = startPos - 1;
+        removedText = viewBefore.charAt(startPos);
+      }
+      else if (key === "Delete" && endPos < viewBefore.length) {
+        removedText = viewBefore.charAt(endPos);
+        endPos = endPos + 1;
+      } else {
+        return null;  // nothing to delete
+      }
+    }
+    // insertText remains ""
   } else {
-    // Replacement
-    changeInfo.changeType = 'replacement';
-    changeInfo.affectedText = newCode.substring(selectionStart, selectionEnd);
+    // not an insertion or deletion we care about
   }
 
 
-  // Calculate line counts
-  // const oldLines = oldCode.substring(0, selectionStart).split('\n');
-  // const newLines = newCode.substring(0, selectionStart).split('\n');
+  // Count how many lines in view were removed/inserted
+  const removedViewLines  = (removedText.match(/\n/g) || []).length;
+  const insertedViewLines = (insertText.match(/\n/g) || []).length;
 
-  let insertionStartPos = selectionStart;
-  if (changeInfo.changeType === 'insertion') {
-    insertionStartPos = selectionStart - lengthDiff;
-  } else if (changeInfo.changeType === 'deletion') {
-    insertionStartPos = selectionStart;
-  }
-  
-  const oldLinesUntilStart = oldCode.substring(0, insertionStartPos).split('\n');
-  const logicalStartLine = oldLinesUntilStart.length;
+  // Build the pre-change view string
+  const viewAfter  = viewBefore.slice(0, startPos) + insertText + viewBefore.slice(endPos);
 
-    
-  // const logicalStartLine = oldLines.length - 1;
-  const logicalEndLine = logicalStartLine + changeInfo.affectedText.split('\n').length - 1;
-  
-  // Step 2: Folded line adjustments (fixed to handle blocks correctly)
-  function calculateRealLineNumber(logicalLine, foldedBlocks) {
-      if (!foldedBlocks) return 0;
-      let realLine = logicalLine -1;
-      let adjusted;
-      
-      return Object.entries(foldedBlocks).reduce((total, [foldStart, foldedLines]) => {
-        const foldStartLine = parseInt(foldStart, 10);
-        // console.log("foldStart: ", foldStart);
-        if (realLine <= foldStartLine) {
-          // return realLine;
-        } else if (foldStartLine < realLine) {  
-          realLine += foldedLines.length;
-        }
-        return realLine;
-      }, 0);
-      
-  }
+  // Map the **pre-change** view to full
+  const { viewToFull } = expandViewToFull(viewBefore, foldedBlocksMap);
 
-  changeInfo.editorIndex = logicalStartLine;
-  
-  changeInfo.startLine = calculateRealLineNumber(logicalStartLine, foldedBlocks);
-  changeInfo.endLine = calculateRealLineNumber(logicalEndLine, foldedBlocks);
+  // Compute which view line the change starts on
+  const beforeSlice   = viewBefore.slice(0, startPos);
+  const viewStartLine = beforeSlice.split("\n").length - 1;
 
-  // Line count change calculation
-  changeInfo.lineCountChange = newCode.split('\n').length - oldCode.split('\n').length;
-  changeInfo.logicalCountChange = (changeInfo.endLine - changeInfo.startLine) * (changeInfo.lineCountChange < 0 ? -1 : 1);
-  
-  // Step 3: Identify context for structural changes
-  if (/\{|\}/.test(changeInfo.affectedText)) {
-    changeInfo.context = "blockStructureChange";
-  } else if (/\(|\)/.test(changeInfo.affectedText)) {
-    changeInfo.context = "functionStructureChange";
-  }
-  return changeInfo;
+  // Map to full‐text
+  const fullStartLine    = viewToFull[viewStartLine];
+  const fullEndLine      = fullStartLine + removedViewLines;
+
+  // Build the changeInfo
+  return {
+    changeType:         removedText.length && !insertText ? "deletion" : "insertion",
+    startLine:          fullStartLine,
+    endLine:            fullEndLine,
+    startPos,
+    data:               insertText || null,
+    lineCountChange:    insertedViewLines - removedViewLines,
+    logicalCountChange: insertedViewLines - removedViewLines
+  };
 }
-
-
 
 /**
  * Build a changeInfo object for an insertion (paste), taking folded blocks into account.
@@ -185,9 +153,6 @@ export function makePasteChangeInfo(e, editor, foldedBlocksMap) {
  };
 }
 
-
-
-
 /**
  * Returns the full code by inserting folded blocks back into the visible code.
  *
@@ -214,7 +179,6 @@ export function generateFullCode(currentVisibleCode) {
 
     return fullCode.join('\n');  // Combine all lines back into a single string and return
 }
-
 
 export function cleanForFolded(fullCode) {
     // Split the full code into lines
@@ -248,4 +212,20 @@ export function cleanForFolded(fullCode) {
     // Join the visible lines back into a string and return the updated code
     return visibleLines.join("\n");
 }
+
+export function handleCodeChange(event, editor, minimapContent, lineNumbers, foldingUtils) {
+  // Only intercept real inserrt events
+  if (!event.altKey && !event.ctrlKey) {
+    
+    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+    const changeInfo   = detectChange(event, editor, foldedBlocks);
   
+    // Update Folding State (handle fold/unfold based on code changes)
+    foldingUtils.updateFoldedBlocks(
+        foldingUtils.updateFoldingState(
+          changeInfo, editor, foldedBlocks, 
+            minimapContent, lineNumbers
+        )
+    )  
+  }
+}

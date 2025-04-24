@@ -57,7 +57,8 @@ function moveLineUp(editor, foldingUtils) {
     const temp = lines[lineIndex];
     lines[lineIndex] = lines[lineIndex - 1];
     lines[lineIndex - 1] = temp;
-
+    console.log("???????????????????");
+    
     // Update the editor content
     editor.value = lines.join("\n");
     foldingUtils.updateFoldedBlocks(
