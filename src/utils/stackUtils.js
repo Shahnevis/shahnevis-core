@@ -55,15 +55,7 @@ export function debounceSnapshot(manager, editor, foldingUtils, onChange) {
  */
 function undo(manager, editor, foldingUtils, onChange) {
   if (!manager.undoStack.length) return;
-  // Push current state into redoStack
-  manager.redoStack.push({
-    text: editor.value,
-    foldedBlocks: JSON.parse(
-      JSON.stringify(foldingUtils.getFoldedBlocksById())
-    ),
-    cursorStart: editor.selectionStart,
-    cursorEnd:   editor.selectionEnd
-  });
+
 
    // Decide whether to pop or just peek
    let prev;
@@ -73,6 +65,17 @@ function undo(manager, editor, foldingUtils, onChange) {
    } else {
      // More than one: pop the top snapshot
      prev = manager.undoStack.pop();
+
+    // Push current state into redoStack
+    manager.redoStack.push({
+      text: editor.value,
+      foldedBlocks: JSON.parse(
+        JSON.stringify(foldingUtils.getFoldedBlocksById())
+      ),
+      cursorStart: editor.selectionStart,
+      cursorEnd:   editor.selectionEnd
+    });
+
    }
   manager.isUndoingOrRedoing = true;
 
