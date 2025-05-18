@@ -12,7 +12,7 @@ import {
   export function createHistoryManager(onChange, initialState = {...globalState}, maxSize = 100) {
 
 
-    console.log("---------------------");
+    // console.log("---------------------");
     // console.log(initialState);
     
 
@@ -25,21 +25,21 @@ import {
     };
   
     return {
-      saveState: (editor, foldingUtils) => {
-        saveSnapshot(manager, editor, foldingUtils);
+      saveState: (editor, foldingManager) => {
+        saveSnapshot(manager, editor, foldingManager);
         onChange((prevState) => ({
           ...prevState,
           undoStack: [...manager.undoStack],
           redoStack: [...manager.redoStack]
         }));
       },
-      debounceSaveState: (editor, foldingUtils) => {
-        debounceSnapshot(manager, editor, foldingUtils, onChange);
+      debounceSaveState: (editor, foldingManager) => {
+        debounceSnapshot(manager, editor, foldingManager, onChange);
       },
   
       /** Keydown handler for undo/redo */
-      handleUndoRedo: (e, editor, foldingUtils) =>
-        handleUndoRedoAction(e, manager, editor, foldingUtils, onChange),
+      handleUndoRedo: (e, editor, foldingManager) =>
+        handleUndoRedoAction(e, manager, editor, foldingManager, onChange),
 
       getStack: ()=>(manager)
     };

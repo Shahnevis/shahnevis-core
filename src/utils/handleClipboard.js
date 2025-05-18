@@ -6,12 +6,12 @@ import { makePasteChangeInfo } from "./codeChange.js";
  *
  * After the move, everything remains unfolded in the editor.
  */
-export async function handleCopyOrCut(event, editor, foldingUtils) {
+export async function handleCopyOrCut(event, editor, foldingManager) {
     if (event.ctrlKey && (event.key === 'c' || event.key === 'x')) {
         event.preventDefault();
         
         // 1) grab the folded‑blocks map and current (collapsed) text
-        const foldedBlocks = foldingUtils.getFoldedBlocksById();
+        const foldedBlocks = foldingManager.getFoldedBlocksById();
         const viewText     = editor.value;
 
         // 2) rebuild the full text and view→full mapping
@@ -87,7 +87,7 @@ export async function handleCopyOrCut(event, editor, foldingUtils) {
                 // else: blocks whose start was within [fullStartLine..fullEndLine] are dropped
             }
             // Push the filtered map back into your folding utils
-            foldingUtils.updateFoldedBlocks(newFolded);         
+            foldingManager.updateFoldedBlocks(newFolded);         
              
             editor.selectionStart = editor.selectionEnd = selectionStart;
         }
@@ -96,11 +96,11 @@ export async function handleCopyOrCut(event, editor, foldingUtils) {
 
 
 
-export function handlePaste(event, editor, minimapContent, lineNumbers, foldingUtils) {
+export function handlePaste(event, editor, minimapContent, lineNumbers, foldingManager) {
     // Only intercept real paste events
     if (event.type !== "paste") return;
     
-    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+    const foldedBlocks = foldingManager.getFoldedBlocksById();
     
     const changeInfo   = makePasteChangeInfo(event, editor, foldedBlocks);
 
@@ -109,12 +109,9 @@ export function handlePaste(event, editor, minimapContent, lineNumbers, foldingU
     
 
     // Update Folding State (handle fold/unfold based on code changes)
-    foldingUtils.updateFoldedBlocks(
-        foldingUtils.updateFoldingState(
-          changeInfo, editor, foldedBlocks, 
-            minimapContent, lineNumbers
-        )
-    )  
-
+    foldingManager.updateFoldingState(
+      changeInfo, editor, foldedBlocks, 
+        minimapContent, lineNumbers, foldingManager
+    )
         
 }

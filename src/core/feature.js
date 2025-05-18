@@ -26,6 +26,9 @@ import { extractDefinedVarsAndObjects, handleSuggestions } from "../utils/sugges
 import { updateSyntaxHighlighting } from "./highlighting";
 import { createHistoryManager } from "../utils/historyManager.js";
 import { handleCodeChange } from "../utils/codeChange.js";
+import { createFoldingManager } from "../utils/foldingManager.js";
+import { updateMinimapContent } from "./minimap.js";
+import { globalState } from "../utils/global.js";
 
 const tabSpaces = '    ';  // Number of spaces per tab (use '\t' for an actual tab character)
 
@@ -108,21 +111,40 @@ export default function featureHandler(
   editorState
 ) {
 
-  // 1) Create a fresh history manager for this editor instance
-  const history = createHistoryManager(setEditorState, editorState, 200 );
+  // Create a fresh history manager for this editor instance
+  
+  const foldingManager = createFoldingManager(editorState);
+  const history = createHistoryManager(setEditorState, editorState, 150 );
+  
+
+  foldingManager.onChange((newState)=>{
+    setEditorState({...newState})
+  })
+
+
+  // init
+  
+  // Initialize the Features
+  if(editorState.undoStack.length == 0)
+    history.saveState(editor, foldingManager);  // Save initial state
+  
+  updateSyntaxHighlighting(editor, highlighter, languageSelector);
+  updateIndentationGuides(editor, minimapContent, lineNumbers, foldingManager);
+  updateMinimapContent(minimapContent, highlighter);
+  
+
 
   const onKeydown = (event) => {
-    
     handleTabs(event, editor);
-    handleMoveLine(event, editor, foldingUtils);
-    handleCopyOrCut(event, editor, foldingUtils)
+    handleMoveLine(event, editor, foldingManager);
+    //= handleCopyOrCut(event, editor, foldingUtils)
     // handleMultiCursor(event, editor);  // Uncomment if needed
     autoCloseOrWrap(event, editor, highlighter);
-    handleCodeChange(event, editor, minimapContent, lineNumbers, foldingUtils);
-    updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
+    handleCodeChange(event, editor, minimapContent, lineNumbers, foldingManager);
+    // updateIndentationGuides(editor, minimapContent, lineNumbers, foldingManager);  // Ensure indentation guides are updated properly
     
     // stack manager
-    history.handleUndoRedo(event, editor, foldingUtils);
+    history.handleUndoRedo(event, editor, foldingManager);
     
   };
 
@@ -130,14 +152,18 @@ export default function featureHandler(
   const onInput = (event) => {
     handleSuggestions(editor, suggestionDropdown, languageSelector, highlighter);
     extractDefinedVarsAndObjects(editor.value);
-    updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils);  // Ensure indentation guides are updated properly
+    // updateIndentationGuides(editor, minimapContent, lineNumbers, foldingManager);  // Ensure indentation guides are updated properly
     // updateSyntaxHighlighting(editor, languageSelector);
-    history.debounceSaveState(editor, foldingUtils);
+    updateSyntaxHighlighting(editor, highlighter, languageSelector);
+    updateIndentationGuides(editor, minimapContent, lineNumbers, foldingManager);
+    updateMinimapContent(minimapContent, highlighter);
+
+    history.debounceSaveState(editor, foldingManager);
 
   };
 
   const onPaste = (event) => {
-    handlePaste(event, editor, minimapContent, lineNumbers, foldingUtils);
+    handlePaste(event, editor, minimapContent, lineNumbers, foldingManager);
   }
 
   // Add event listeners (only once)
@@ -145,9 +171,7 @@ export default function featureHandler(
   editor.addEventListener('input', onInput);
   editor.addEventListener("paste", onPaste);
 
-  // Initialize the Features
-  if(editorState.undoStack.length == 0)
-    history.saveState(editor, foldingUtils);  // Save initial state
+
 
   // Cleanup function to remove event listeners if needed (for React or other environments)
   return () => {

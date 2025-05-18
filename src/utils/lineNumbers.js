@@ -17,10 +17,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-export function updateIndentationGuides(editor, minimapContent, lineNumbers, foldingUtils, setCode) {
+export function updateIndentationGuides(editor, minimapContent, lineNumbers, foldingManager) {
 
     
-    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+    const foldedBlocks = foldingManager.getFoldedBlocksById();
 
     function countTotalFoldedLines(startLine) {
         const keys = Object.keys(foldedBlocks)
@@ -90,8 +90,8 @@ export function updateIndentationGuides(editor, minimapContent, lineNumbers, fol
         );
 
         // Add fold/expand buttons
-        lineNumberElement.appendChild(foldingUtils.foldingButtons(line, index, currentVisibleLine-1, editor, minimapContent, lineNumbers, setCode));
-        lineNumberElement.appendChild(foldingUtils.expandButtons(line, index, currentVisibleLine-1, editor, minimapContent, lineNumbers, setCode));
+        lineNumberElement.appendChild(foldingManager.foldingButtons(line, index, currentVisibleLine-1, editor, minimapContent, lineNumbers, foldingManager));
+        lineNumberElement.appendChild(foldingManager.expandButtons(line, index, currentVisibleLine-1, editor, minimapContent, lineNumbers, foldingManager));
 
         lineNumbers.appendChild(lineNumberElement);
 

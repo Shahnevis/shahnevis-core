@@ -21,93 +21,63 @@ import { updateSyntaxHighlighting } from "../core/highlighting";
 import { updateMinimapContent } from "../core/minimap";
 import { updateIndentationGuides } from "./lineNumbers";
 
-// Track folded blocks with their start and end positions
-export let standalone_foldedBlocks = {};
-
-
-export function setFoldedBlock(params) {
-    standalone_foldedBlocks = params;
+export function setFoldedBlock(foldedBlocks, newMap) {
+  return { ...newMap };
 }
 
 // Function to find block start and end positions for curly-brace-based languages
-function findBlockBoundaries(startLine, actualLineNumber, code) {
-    const lines = standalone_foldedBlocks[actualLineNumber] || code.split("\n");
-    let blockStart = startLine;
-    let openBraces = 0;
+function findBlockBoundaries(startLine, actualLineNumber, code, foldedBlocks={}) {
+  const lines = foldedBlocks[actualLineNumber] || code.split("\n");
+  let blockStart = startLine;
+  let openBraces = 0;
+  // console.log(foldedBlocks);
 
-    if(standalone_foldedBlocks[actualLineNumber]){
-        startLine = (standalone_foldedBlocks[actualLineNumber])?0:startLine
-        openBraces = 1;
-    }
+  if (foldedBlocks[actualLineNumber]) {
+    startLine = foldedBlocks[actualLineNumber] ? 0 : startLine;
+    openBraces = 1;
+  }
 
-    let blockEnd = -1;
+  let blockEnd = -1;
 
-    for (let i = startLine; i < lines.length; i++) {
-        if (lines[i].includes("{")) {
-            if (blockStart === -1) blockStart = i;
-            openBraces++;
-        }
-        if (lines[i].includes("}")) {
-            openBraces--;
-            if (openBraces === 0) {
-                blockEnd = i;
-                break;
-            }
-        }
+  let codeLine = actualLineNumber;
+  for (let i = startLine; i < lines.length; i++) {
+    // console.log(foldedBlocks);
+    // console.log("foldedBlocks[i]: ", foldedBlocks[actualLineNumber]);
+    if (lines[i].includes("{") && !foldedBlocks[codeLine]?.length) {
+      if (blockStart === -1) blockStart = i;
+      openBraces++;
+    } else {
+      // console.log(foldedBlocks[actualLineNumber]?.length);
+      // console.log(typeof(foldedBlocks[actualLineNumber]?.length));
+      //
+      codeLine += foldedBlocks[actualLineNumber]?.length || 0;
     }
-    
-    if (blockStart !== -1 && blockEnd !== -1) {
-        return { blockStart, blockEnd };
+    // console.log("!foldedBlocks[i]: ", !foldedBlocks[codeLine]?.length);
+    // console.log("i: ", i);
+    // console.log("codeLine: ", codeLine);
+    // console.log("lines: ", lines);
+    // console.log(`lines[]: |${lines[i]}|`);
+    // console.log(lines[i].includes("}"));
+    //
+    if (lines[i].includes("}")) {
+      openBraces--;
+      // console.log("openBraces: ", openBraces);
+      if (openBraces === 0) {
+        blockEnd = i;
+        break;
+      }
+    }else{
+      
     }
-    return null;
+    codeLine++;
+  }
+  // && blockEnd !== -1
+  if (blockStart !== -1  ) {
+    return { blockStart, blockEnd };
+  }
+  return null;
 }
 
-// function to toggle block folding (fold/unfold)
-// function toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
-//     const code = editor.value;
-//     const block = findBlockBoundaries(startLine, actualLineNumber, code);
-    
-//     if (block) {
-//         const { blockStart, blockEnd } = block;
-        
-//         // Check if this block is already folded
-//         if (standalone_foldedBlocks[actualLineNumber]) {
-//             // Unfold the block by restoring the lines
-//             const foldedCode = standalone_foldedBlocks[actualLineNumber];
-//             const unfoldedCode = editor.value.split("\n");
-//             unfoldedCode.splice(blockStart + 1, 0, ...foldedCode);
-//             editor.value = unfoldedCode.join("\n");
-
-//             delete standalone_foldedBlocks[actualLineNumber];
-
-//             // Change symbol to unfold
-//             updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
-//             updateFoldSymbol(blockStart, false);
-//         } else {
-//             // Fold the block by hiding lines between blockStart and blockEnd
-//             const codeLines = editor.value.split("\n");
-//             const foldedLines = codeLines.splice(blockStart + 1, blockEnd - blockStart);
-
-//             standalone_foldedBlocks[actualLineNumber] = foldedLines; // Store the folded lines
-//             codeLines.splice(blockStart + 1, 0); //`/* ... Folded ${foldedLines.length} lines */`
-
-//             editor.value = codeLines.join("\n");
-            
-//             // Change symbol to fold
-//             updateIndentationGuides(editor, minimapContent, lineNumbers); // Update line numbers after folding/unfolding
-//             updateFoldSymbol(blockStart, true);
-//         }
-//         // // updateIndentationGuides(); // Update line numbers after folding/unfolding
-//         const highlight = null;
-//         updateSyntaxHighlighting(editor, highlight); // Reapply syntax highlighting
-//         updateMinimapContent(minimapContent, highlight); // Update the minimap
-//     }
-
-//     // Notify the parent or any external component about the new textarea value
-//     if (setCode) {
-//         setCode(editor.value); // Call the callback function with the updated code
-//     }
-// }
 
 // Function to update the fold/unfold symbol based on the block state
 function updateFoldSymbol(lineIndex, folded=false) {
@@ -123,39 +93,41 @@ function updateFoldSymbol(lineIndex, folded=false) {
 }
 
 // Function to find nested blocks and add folding buttons
-export function foldingButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
-        const foldingButton = document.createElement('span');
-        foldingButton.className = 'folding-button';
-        const folded = !!standalone_foldedBlocks[actualLineNumber];
-        // Check for curly brace to add folding functionality
-        if (line.includes("{")) {
-            foldingButton.style.cursor = 'pointer';
-            foldingButton.innerHTML = (!folded)?'▼':'▶'; // Default to unfolded
-            // foldingButton.style.visibility = (folded)?'visible':'hidden';
-            foldingButton.addEventListener('click', () => toggleFold(index, actualLineNumber, editor, minimapContent, lineNumbers, setCode));
-        } else {
-            foldingButton.style.visibility = 'hidden'; // No foldable block
-        }
-        
-        return foldingButton;
+export function foldingButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager) {
+  const foldedBlocks = foldingManager.getFoldedBlocksById();
+  // console.log(foldedBlocksById);
+  const foldingButton = document.createElement('span');
+  foldingButton.className = 'folding-button';
+  const folded = !!foldedBlocks[actualLineNumber];
+
+  if (line.includes("{")) {
+    foldingButton.style.cursor = 'pointer';
+    foldingButton.innerHTML = folded ? '▶' : '▼';
+    foldingButton.addEventListener('click', () => foldingManager.toggleFold(index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager));
+  } else {
+    foldingButton.style.visibility = 'hidden';
+  }
+
+  return foldingButton;
 }
 
 // Function to find nested blocks and add folding buttons
-export function expandButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
-
+export function expandButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager) {
+  const foldedBlocks = foldingManager.getFoldedBlocksById();
+    // console.log(foldedBlocksById);
     const expandBtn = document.createElement('div');
-    expandBtn.className = 'expand-button'; 
-    const folded = !!standalone_foldedBlocks[actualLineNumber];
-    // Check for curly brace to add folding functionality
+    expandBtn.className = 'expand-button';
+    const folded = !!foldedBlocks[actualLineNumber];
+
     if (line.includes("{")) {
-        expandBtn.innerHTML = '... }'; // Default to unfolded
-        expandBtn.style.left = `${line.length*9+75}px`;
-        expandBtn.style.visibility = (folded)?'visible':'hidden';
-        expandBtn.addEventListener('click', () => toggleFold(index, actualLineNumber, editor, minimapContent, lineNumbers, setCode));
+      expandBtn.innerHTML = '... }';
+      expandBtn.style.left = `${line.length * 9 + 75}px`;
+      expandBtn.style.visibility = folded ? 'visible' : 'hidden';
+      expandBtn.addEventListener('click', () => foldingManager.toggleFold(index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager));
     } else {
-        expandBtn.style.visibility = 'hidden'; // No foldable block
+      expandBtn.style.visibility = 'hidden';
     }
-    
+
     return expandBtn;
 }
 
@@ -308,77 +280,83 @@ export function updateFoldedBlocksAfterSwap(foldedBlocks, start1, start2) {
 }
 
 // Function to handle the folding state update
-export function updateFoldingState(changeInfo, editor, updatedCode, oldFoldedBlocks, minimapContent, lineNumbers, setCode) {
-    const newFoldedBlocks = {};
+export function updateFoldingState(changeInfo, editor, oldFoldedBlocks, minimapContent, lineNumbers, foldingManager) {
+  
+  // Destructure key values from the change object.
+  // const { changeType, startLine: changeStart, endLine: changeEnd, startPos, lineCountChange, logicalCountChange: changeLength, data } = changeInfo;
+    const {
+    changeType,
+    startLine: changeStart,
+    endLine: changeEnd,
+    startPos,
+    lineCountChange,
+    logicalCountChange: changeLength,
+    data
+  } = changeInfo;
 
-    // Destructure key values from the change object.
-    const { changeType, startLine: changeStart, endLine: changeEnd, startPos, lineCountChange, logicalCountChange: changeLength, data } = changeInfo;
-    
-    // Determine if the change contains an Enter/newline.
-    const insertLength = data?.split('\n').length - 1 || 0;
-
-    if(changeLength != 0){
-      // This variable will track the cumulative net shift due to unfolded blocks,
-      // which affects the starting line numbers of subsequent folded blocks.
-      // let cumulativeShift = changeLength;
-      let cumulativeShift = changeLength>0?lineCountChange:changeLength;
-
-      // Process each folded block from the old state.
-      for (const key in oldFoldedBlocks) {
-        // Convert key to an integer line number.
-        const blockStart = parseInt(key, 10);
-        const foldedBlock = oldFoldedBlocks[key];
-        const blockLength = foldedBlock.length;
-        const blockEnd = blockStart + blockLength - 1;
-    
-        // If the change is inserting a newline and it occurs inside a folded block, then "open" the block.
-        if (changeStart === blockStart) {
-          // Insertion on the first line of the folded block:
-          // Unfold the block visually/logically.
-          toggleFold(blockStart+insertLength, blockStart, editor, minimapContent, lineNumbers, setCode);
-          editor.selectionStart = editor.selectionEnd = startPos;
-          // Since we open the block, we remove it and only count the inserted lines.
-          cumulativeShift = insertLength;
-          continue;
-
-        }
-        if (changeStart >= blockStart && changeStart+insertLength <= blockStart) {
-        // if (changeStart >= blockStart && changeStart <= blockEnd) {
-          // The block is being modified by an enter; remove it from the folded stack.
-          continue;
-        }
-    
-        if (changeType == "deletion" && changeStart <= blockStart && changeEnd >= blockEnd) {
-          continue;
-        }
-
-        // Otherwise, if the block starts before the change, it remains unchanged.
-        // If it starts at or after the change, shift its starting line by the net line change.
-        const newKey = blockStart < changeStart ? blockStart : blockStart + cumulativeShift;
-        if(newKey >= 0) newFoldedBlocks[newKey] = foldedBlock;
-      }
-      return newFoldedBlocks;
-    }
+  // No net change → keep existing folds
+  if (lineCountChange === 0) {
     return oldFoldedBlocks;
+  }
+  
+  const newFoldedBlocks = {};
+
+    // This variable will track the cumulative net shift due to unfolded blocks,
+    // which affects the starting line numbers of subsequent folded blocks.
+    // let cumulativeShift = changeLength;
+    const inputShift = changeLength>0?lineCountChange:changeLength;
+    let cumulativeShift = changeLength>0?lineCountChange:changeLength;
+
+    // Process each folded block from the old state.
+    for (const key in oldFoldedBlocks) {
+      // Convert key to an integer line number.
+      const blockStart = parseInt(key, 10);
+      const foldedBlock = oldFoldedBlocks[key];
+      const blockLength = foldedBlock.length;
+
+      const blockEnd = blockStart + blockLength - 1;
+  
+      // If the change is inserting a newline and it occurs inside a folded block, then "open" the block.
+      if (changeStart === blockStart && lineCountChange > 0) {
+        // Insertion on the first line of the folded block:
+        // Unfold the block visually/logically.
+        const keys = Object.keys(oldFoldedBlocks);
+        const idx  = keys.indexOf(String(key));
+        const keysBefore = keys.slice(0, idx);
+        const dataBefore = keysBefore.map(k => oldFoldedBlocks[k]);
+        const totalShift = dataBefore.flat().length;
+        
+        foldingManager.toggleFold(blockStart-totalShift, blockStart, editor, minimapContent, lineNumbers, foldingManager);
+        editor.selectionStart = editor.selectionEnd = startPos;
+        // Since we open the block, we remove it and only count the inserted lines.
+        cumulativeShift += blockLength;
+        continue;
+
+      }
+      if (changeStart >= blockStart && changeStart+lineCountChange <= blockStart) {
+      // if (changeStart >= blockStart && changeStart <= blockEnd) {
+        // The block is being modified by an enter; remove it from the folded stack.
+        continue;
+      }
+  
+      if (changeType == "deletion" && changeStart <= blockStart && changeEnd >= blockEnd) {
+        continue;
+      }
+
+      // Otherwise, if the block starts before the change, it remains unchanged.
+      // If it starts at or after the change, shift its starting line by the net line change.
+      const newKey = blockStart < changeStart ? blockStart : blockStart + inputShift;
+      if(newKey >= 0) newFoldedBlocks[newKey] = foldedBlock;
+    }
+    return newFoldedBlocks;
 } 
 
-export function  updateFoldedBlocks (updatedBlocks){
 
-  // setFoldedBlocksById((prev) => {
-  //   const newState = { ...prev, [id]: updatedBlocks};
-  //   // console.log(newState);
-  //   return newState;
-  // })
-  
-  // return updatedBlocks;
-}
-
-export function  toggleFold (startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode) {
-  
-  const foldedBlocks = foldedBlocksById[id] || {};
+export function  toggleFold (startLine, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager) {
+  const foldedBlocks = foldingManager.getFoldedBlocksById();
   const code = editor.value;
-  const block = findBlockBoundaries(startLine, actualLineNumber, code);
-  
+  const block = findBlockBoundaries(startLine, actualLineNumber, code, foldedBlocks);
+  let updatedBlocks = {};
   // console.log(block);
   // console.log("actualLineNumber: ", actualLineNumber);
   if (block) {
@@ -391,13 +369,8 @@ export function  toggleFold (startLine, actualLineNumber, editor, minimapContent
       editor.value = unfoldedCode.join("\n");
       // console.log(unfoldedCode);
       
-      // setFoldedBlocksById((prev) => {
-      //   const newFoldedBlock =  {...prev[id]} ;
-      //   delete newFoldedBlock[actualLineNumber]; // Remove the old block
-      //   const newState = { ...prev, [id]: {...newFoldedBlock}};
-      //   // console.log(newState);
-      //   return newState;
-      // });
+      updatedBlocks =  {...foldedBlocks} ;
+      delete updatedBlocks[actualLineNumber]; // Remove the old block
 
       // updateIndentationGuides(editor, minimapContent, lineNumbers, {getFoldedBlocksById, foldingButtons, expandButtons});
       updateFoldSymbol(blockStart, false);
@@ -405,14 +378,10 @@ export function  toggleFold (startLine, actualLineNumber, editor, minimapContent
       const codeLines = editor.value.split("\n");
       const foldedLines = codeLines.splice(blockStart + 1, blockEnd - blockStart);
 
-      // setFoldedBlocksById((prev) => {
-      //   const newState = { ...prev, [id]: {
-      //     ...prev[id],
-      //     [actualLineNumber]: foldedLines,
-      //   }};
-      //   // console.log(newState);
-      //   return newState;
-      // });
+      updatedBlocks = {
+        ...foldedBlocks,
+        [actualLineNumber]: foldedLines,
+      };
 
       codeLines.splice(blockStart + 1, 0);
       // console.log(codeLines);
@@ -421,11 +390,9 @@ export function  toggleFold (startLine, actualLineNumber, editor, minimapContent
       // updateIndentationGuides(editor, minimapContent, lineNumbers, {getFoldedBlocksById, foldingButtons, expandButtons});
       updateFoldSymbol(blockStart, true);
     }
+  } else{
+    updatedBlocks = {...foldedBlocks};
   }
-
-  if (setCode) {
-    // console.log(editor.value);
-    // setCode(editor.value);
-  }
+  return {newCode: editor.value, newFoldedBlocks: updatedBlocks}
 }
 

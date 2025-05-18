@@ -12,36 +12,73 @@ import {
   } from "./folding";
   
 
-  export function createFoldingManager() {
-    let foldedBlocks = {};
+  export function createFoldingManager(initState) {
+    
+    let foldedBlocks = {...initState.foldedBlocks};
+    const listeners = new Set();
+
+    function notify() {
+      for (const fn of listeners) fn({
+        ...initState,
+        foldedBlocks
+      });
+    }
+  
 
     return{
-      setFoldedBlock: ()=> 
-        setFoldedBlock(params),
 
-      getFoldedBlocks: ()=>
-        foldedBlocks,
+      onChange(fn) {
+        listeners.add(fn);
+        return () => listeners.delete(fn);
+      },
 
-      toggleFold: ()=> 
-        toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNumbers, setCode),
+      // each of these methods drives state + notifies
+      setFoldedBlock(params) {
+        foldedBlocks = setFoldedBlock(foldedBlocks, params);
+        notify();
+      },
 
-      foldingButtons: ()=> 
-        foldingButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, setCode),
+            // each of these methods drives state + notifies
+            updateFoldedBlocks(params) {
+              foldedBlocks = setFoldedBlock(foldedBlocks, params);
+              notify();
+            },
 
-      expandButtons: ()=> 
-        expandButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, setCode),
+      getFoldedBlocksById() {
+        return foldedBlocks;
+      },
 
-      expandViewToFull: ()=> 
+      toggleFold: (startLine, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager)=> {
+        const { newCode, newFoldedBlocks } = 
+            toggleFold(startLine, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager)
+            // code = newCode;
+            // console.log(newCode);
+            
+            foldedBlocks = newFoldedBlocks;
+            // you can now update DOM once here:
+            notify();
+      },
+
+      foldingButtons: (line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager)=> 
+        foldingButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager),
+
+      expandButtons: (line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager)=> 
+        expandButtons(line, index, actualLineNumber, editor, minimapContent, lineNumbers, foldingManager),
+
+      expandViewToFull: (viewText, foldedBlocksMap)=> 
         expandViewToFull(viewText, foldedBlocksMap),
 
-      computeTotalSpan: ()=> 
+      computeTotalSpan: (start, foldedBlocks)=> 
         computeTotalSpan(start, foldedBlocks),
 
-      updateFoldedBlocksAfterSwap: ()=> 
-        updateFoldedBlocksAfterSwap(foldedBlocks, start1, start2),
+      updateFoldedBlocksAfterSwap(start1, start2) {
+        foldedBlocks = updateFoldedBlocksAfterSwap(foldedBlocks, start1, start2);
+        notify();
+      },
 
-      updateFoldingState: ()=>
-        updateFoldingState(changeInfo, editor, updatedCode, oldFoldedBlocks, minimapContent, lineNumbers, setCode)
-
+      updateFoldingState: (changeInfo, editor, oldFoldedBlocks, minimapContent, lineNumbers, foldingManager)=>{
+        foldedBlocks = updateFoldingState(changeInfo, editor, oldFoldedBlocks, minimapContent, lineNumbers, foldingManager);
+        notify();
+      }
     }
   }

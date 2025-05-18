@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { expandViewToFull, standalone_foldedBlocks } from "./folding";
+import { expandViewToFull } from "./folding";
 
 /**
  * Detects changes made in the editor and returns detailed change information.
@@ -30,66 +30,66 @@ import { expandViewToFull, standalone_foldedBlocks } from "./folding";
  * @returns {Object} changeInfo - Information about the detected change.
 **/
 export function detectChange(e, editor, foldedBlocksMap) {
-  const key = e.key || '';
+  const key        = e.key || "";
   const viewBefore = editor.value;
-  let startPos = editor.selectionStart;
-  let endPos   = editor.selectionEnd;
+  let startPos     = editor.selectionStart;
+  let endPos       = editor.selectionEnd;
 
-  let insertText = "";
+  // figure out exactly what was removed or inserted
+  let insertText  = "";
   let removedText = viewBefore.slice(startPos, endPos);
 
-  // (A) If it's a simple character/Enter insertion:
   if (key.length === 1 || key === "Enter") {
-    insertText = (key === "Enter") ? "\n" : key;
-  }
-  // (B) If it's Backspace or Delete:
-  else if (key === "Backspace" || key === "Delete") {
-    // If nothing is selected, remove one char backward/forward
+    insertText = key === "Enter" ? "\n" : key;
+  } else if (key === "Backspace" || key === "Delete") {
     if (startPos === endPos) {
       if (key === "Backspace" && startPos > 0) {
-        startPos = startPos - 1;
+        startPos -= 1;
         removedText = viewBefore.charAt(startPos);
-      }
-      else if (key === "Delete" && endPos < viewBefore.length) {
+      } else if (key === "Delete" && endPos < viewBefore.length) {
         removedText = viewBefore.charAt(endPos);
-        endPos = endPos + 1;
+        endPos += 1;
       } else {
-        return null;  // nothing to delete
+        return null;
       }
     }
-    // insertText remains ""
-  } else {
-    // not an insertion or deletion we care about
   }
 
-
-  // Count how many lines in view were removed/inserted
+  // Count how many view‐lines the edit touched
   const removedViewLines  = (removedText.match(/\n/g) || []).length;
-  const insertedViewLines = (insertText.match(/\n/g) || []).length;
+  const insertedViewLines = (insertText.match(/\n/g)  || []).length;
 
-  // Build the pre-change view string
-  const viewAfter  = viewBefore.slice(0, startPos) + insertText + viewBefore.slice(endPos);
+  // Build the “after” view so we can expand it
+  const viewAfter = viewBefore.slice(0, startPos)
+                 + insertText
+                 + viewBefore.slice(endPos);
 
-  // Map the **pre-change** view to full
-  const { viewToFull } = expandViewToFull(viewBefore, foldedBlocksMap);
+  // Expand both to full text & grab the mapping
+  const beforeExp = expandViewToFull(viewBefore, foldedBlocksMap);
+  
+  const afterExp  = expandViewToFull(viewAfter,  foldedBlocksMap);
 
-  // Compute which view line the change starts on
-  const beforeSlice   = viewBefore.slice(0, startPos);
-  const viewStartLine = beforeSlice.split("\n").length - 1;
+  const fullBefore = beforeExp.fullText;
+  const fullAfter  = afterExp.fullText;
+  const { viewToFull } = beforeExp;
 
-  // Map to full‐text
-  const fullStartLine    = viewToFull[viewStartLine];
-  const fullEndLine      = fullStartLine + removedViewLines;
+  // Compute the view→full start line
+  const viewStartLine = viewBefore.slice(0, startPos).split("\n").length - 1;
+  const fullStartLine = viewToFull[viewStartLine];
 
-  // Build the changeInfo
+  // Now do the one true logical line‐count diff
+  const fullBeforeLines = fullBefore.length;
+  const fullAfterLines  = fullAfter.length;
+  const logicalCountChange = fullAfterLines - fullBeforeLines;
+
   return {
     changeType:         removedText.length && !insertText ? "deletion" : "insertion",
     startLine:          fullStartLine,
-    endLine:            fullEndLine,
+    endLine:            fullStartLine + removedViewLines,  
     startPos,
     data:               insertText || null,
     lineCountChange:    insertedViewLines - removedViewLines,
-    logicalCountChange: insertedViewLines - removedViewLines
+    logicalCountChange                  
   };
 }
 
@@ -159,7 +159,7 @@ export function makePasteChangeInfo(e, editor, foldedBlocksMap) {
  * @param {string} currentVisibleCode - The code as seen in the editor (with folded blocks hidden).
  * @returns {string} - The full code with all folded blocks inserted.
  */
-export function generateFullCode(currentVisibleCode) {
+export function generateFullCode(currentVisibleCode, standalone_foldedBlocks) {
     const codeLines = currentVisibleCode.split('\n');  // Split visible code into lines
     const fullCode = [];  // Array to store the final full code
     
@@ -180,7 +180,7 @@ export function generateFullCode(currentVisibleCode) {
     return fullCode.join('\n');  // Combine all lines back into a single string and return
 }
 
-export function cleanForFolded(fullCode) {
+export function cleanForFolded(fullCode, standalone_foldedBlocks) {
     // Split the full code into lines
     const lines = fullCode.split("\n");
   
@@ -213,19 +213,17 @@ export function cleanForFolded(fullCode) {
     return visibleLines.join("\n");
 }
 
-export function handleCodeChange(event, editor, minimapContent, lineNumbers, foldingUtils) {
+export function handleCodeChange(event, editor, minimapContent, lineNumbers, foldingManager) {
   // Only intercept real inserrt events
   if (!event.altKey && !event.ctrlKey) {
     
-    const foldedBlocks = foldingUtils.getFoldedBlocksById();
+    const foldedBlocks = foldingManager.getFoldedBlocksById();
     const changeInfo   = detectChange(event, editor, foldedBlocks);
   
     // Update Folding State (handle fold/unfold based on code changes)
-    foldingUtils.updateFoldedBlocks(
-        foldingUtils.updateFoldingState(
-          changeInfo, editor, foldedBlocks, 
-            minimapContent, lineNumbers
-        )
-    )  
+    foldingManager.updateFoldingState(
+      changeInfo, editor, foldedBlocks, 
+        minimapContent, lineNumbers, foldingManager
+    )
   }
 }
